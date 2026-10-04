@@ -1,12 +1,153 @@
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
 const WebSocket = require("ws");
 
 const PORT = process.env.PORT || 8080;
 
+
+// =========================================================
+// Web版ムニキング配信
+// =========================================================
+
+const web_root = __dirname;
+
+
+const mime_types = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".wasm": "application/wasm",
+    ".pck": "application/octet-stream",
+    ".json": "application/json; charset=utf-8",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+    ".css": "text/css; charset=utf-8",
+    ".webmanifest": "application/manifest+json"
+};
+
+
+const http_server = http.createServer(
+    function(request, response) {
+
+        let request_path = request.url.split("?")[0];
+
+        try {
+            request_path = decodeURIComponent(
+                request_path
+            );
+        } catch (error) {
+            response.writeHead(
+                400,
+                {
+                    "Content-Type": "text/plain; charset=utf-8"
+                }
+            );
+
+            response.end(
+                "Bad Request"
+            );
+
+            return;
+        }
+
+
+        if (request_path === "/") {
+            request_path = "/index.html";
+        }
+
+
+        const file_path = path.join(
+            web_root,
+            request_path
+        );
+
+
+        if (!file_path.startsWith(web_root)) {
+
+            response.writeHead(
+                403,
+                {
+                    "Content-Type": "text/plain; charset=utf-8"
+                }
+            );
+
+            response.end(
+                "Forbidden"
+            );
+
+            return;
+        }
+
+
+        fs.stat(
+            file_path,
+            function(error, stats) {
+
+                if (error || !stats.isFile()) {
+
+                    response.writeHead(
+                        404,
+                        {
+                            "Content-Type":
+                                "text/plain; charset=utf-8"
+                        }
+                    );
+
+                    response.end(
+                        "Not Found"
+                    );
+
+                    return;
+                }
+
+
+                const extension = path.extname(
+                    file_path
+                ).toLowerCase();
+
+
+                const content_type =
+                    mime_types[extension] ||
+                    "application/octet-stream";
+
+
+                response.writeHead(
+                    200,
+                    {
+                        "Content-Type":
+                            content_type
+                    }
+                );
+
+
+                const stream = fs.createReadStream(
+                    file_path
+                );
+
+
+                stream.pipe(
+                    response
+                );
+            }
+        );
+    }
+);
+
+
+// =========================================================
+// WebSocketサーバー
+// =========================================================
+
 const wss = new WebSocket.WebSocketServer({
-    port: PORT
+    server: http_server
 });
 
+
 const rooms = new Map();
+
 
 console.log(
     "オンライン対戦サーバー起動: port " + PORT
@@ -23,6 +164,7 @@ function send_message(ws, data) {
         ws &&
         ws.readyState === WebSocket.OPEN
     ) {
+
         ws.send(
             JSON.stringify(data)
         );
@@ -45,7 +187,9 @@ function create_room_code() {
             Math.random() * 900000
         ).toString();
 
-    } while (rooms.has(code));
+    } while (
+        rooms.has(code)
+    );
 
     return code;
 }
@@ -60,9 +204,14 @@ function get_opponent(
     player
 ) {
 
-    for (const other_player of room.players) {
+    for (
+        const other_player of room.players
+    ) {
 
-        if (other_player !== player) {
+        if (
+            other_player !== player
+        ) {
+
             return other_player;
         }
     }
@@ -82,6 +231,7 @@ wss.on(
         ws.room_code = "";
         ws.is_host = false;
 
+
         console.log(
             "クライアント接続"
         );
@@ -96,6 +246,7 @@ wss.on(
             function message(raw_data) {
 
                 let data;
+
 
                 try {
 
@@ -112,7 +263,12 @@ wss.on(
                     return;
                 }
 
-                if (!data || !data.type) {
+
+                if (
+                    !data ||
+                    !data.type
+                ) {
+
                     return;
                 }
 
@@ -126,44 +282,57 @@ wss.on(
                     "create_room"
                 ) {
 
-                    if (ws.room_code !== "") {
+                    if (
+                        ws.room_code !== ""
+                    ) {
+
                         return;
                     }
+
 
                     const room_code =
                         create_room_code();
 
+
                     const room = {
+
                         players: [
                             ws
                         ],
+
                         battle_started: false
                     };
+
 
                     rooms.set(
                         room_code,
                         room
                     );
 
+
                     ws.room_code =
                         room_code;
 
                     ws.is_host = true;
+
 
                     send_message(
                         ws,
                         {
                             "type":
                                 "room_created",
+
                             "room_code":
                                 room_code
                         }
                     );
 
+
                     console.log(
                         "部屋作成: " +
                         room_code
                     );
+
 
                     return;
                 }
@@ -183,24 +352,31 @@ wss.on(
                             data.room_code || ""
                         );
 
+
                     if (
                         room_code === ""
                     ) {
+
                         return;
                     }
+
 
                     const room =
                         rooms.get(
                             room_code
                         );
 
-                    if (!room) {
+
+                    if (
+                        !room
+                    ) {
 
                         send_message(
                             ws,
                             {
                                 "type":
                                     "error",
+
                                 "message":
                                     "部屋が見つかりません。"
                             }
@@ -208,6 +384,7 @@ wss.on(
 
                         return;
                     }
+
 
                     if (
                         room.players.length >= 2
@@ -218,6 +395,7 @@ wss.on(
                             {
                                 "type":
                                     "error",
+
                                 "message":
                                     "この部屋は満員です。"
                             }
@@ -226,20 +404,24 @@ wss.on(
                         return;
                     }
 
+
                     room.players.push(
                         ws
                     );
+
 
                     ws.room_code =
                         room_code;
 
                     ws.is_host = false;
 
+
                     send_message(
                         ws,
                         {
                             "type":
                                 "room_joined",
+
                             "room_code":
                                 room_code
                         }
@@ -249,6 +431,7 @@ wss.on(
                     const host =
                         room.players[0];
 
+
                     send_message(
                         host,
                         {
@@ -257,95 +440,114 @@ wss.on(
                         }
                     );
 
+
                     console.log(
                         "部屋参加: " +
                         room_code
                     );
 
+
                     return;
                 }
 
 
-               // =================================================
-// バトル開始
-// =================================================
+                // =================================================
+                // バトル開始
+                // =================================================
 
-if (
-    data.type ===
-    "battle_start"
-) {
+                if (
+                    data.type ===
+                    "battle_start"
+                ) {
 
-    const room =
-        rooms.get(
-            ws.room_code
-        );
+                    const room =
+                        rooms.get(
+                            ws.room_code
+                        );
 
-    if (!room) {
-        return;
-    }
 
-    if (
-        room.players.length !== 2
-    ) {
-        return;
-    }
+                    if (
+                        !room
+                    ) {
 
-    if (
-        room.battle_started
-    ) {
-        return;
-    }
+                        return;
+                    }
 
-    room.battle_started = true;
 
-    // -------------------------------------------------
-    // 先攻をランダム決定
-    // -------------------------------------------------
+                    if (
+                        room.players.length !== 2
+                    ) {
 
-    const first_player_index =
-        Math.floor(
-            Math.random() * 2
-        );
+                        return;
+                    }
 
-    // -------------------------------------------------
-    // それぞれに「自分が先攻か」を送る
-    // -------------------------------------------------
 
-    for (
-        let i = 0;
-        i < room.players.length;
-        i++
-    ) {
+                    if (
+                        room.battle_started
+                    ) {
 
-        const player =
-            room.players[i];
+                        return;
+                    }
 
-        const is_first_player =
-            i === first_player_index;
 
-        send_message(
-            player,
-            {
-                "type":
-                    "first_player",
+                    room.battle_started =
+                        true;
 
-                "is_host":
-                    is_first_player
-            }
-        );
-    }
 
-    console.log(
-        "先攻決定: " +
-        (
-            first_player_index === 0
-            ? "ホスト"
-            : "参加者"
-        )
-    );
+                    // -------------------------------------------------
+                    // 先攻をランダム決定
+                    // -------------------------------------------------
 
-    return;
-}
+                    const first_player_index =
+                        Math.floor(
+                            Math.random() * 2
+                        );
+
+
+                    // -------------------------------------------------
+                    // それぞれに「自分が先攻か」を送る
+                    // -------------------------------------------------
+
+                    for (
+                        let i = 0;
+                        i < room.players.length;
+                        i++
+                    ) {
+
+                        const player =
+                            room.players[i];
+
+
+                        const is_first_player =
+                            i === first_player_index;
+
+
+                        send_message(
+                            player,
+                            {
+                                "type":
+                                    "first_player",
+
+                                "is_host":
+                                    is_first_player
+                            }
+                        );
+                    }
+
+
+                    console.log(
+                        "先攻決定: " +
+                        (
+                            first_player_index === 0
+                            ? "ホスト"
+                            : "参加者"
+                        )
+                    );
+
+
+                    return;
+                }
+
 
                 // =================================================
                 // デッキ情報
@@ -361,9 +563,14 @@ if (
                             ws.room_code
                         );
 
-                    if (!room) {
+
+                    if (
+                        !room
+                    ) {
+
                         return;
                     }
+
 
                     const opponent =
                         get_opponent(
@@ -371,21 +578,29 @@ if (
                             ws
                         );
 
-                    if (!opponent) {
+
+                    if (
+                        !opponent
+                    ) {
+
                         return;
                     }
+
 
                     send_message(
                         opponent,
                         {
                             "type":
                                 "battle_setup",
+
                             "main_1_id":
                                 data.main_1_id || "",
+
                             "main_2_id":
                                 data.main_2_id || ""
                         }
                     );
+
 
                     return;
                 }
@@ -405,9 +620,14 @@ if (
                             ws.room_code
                         );
 
-                    if (!room) {
+
+                    if (
+                        !room
+                    ) {
+
                         return;
                     }
+
 
                     const opponent =
                         get_opponent(
@@ -415,21 +635,29 @@ if (
                             ws
                         );
 
-                    if (!opponent) {
+
+                    if (
+                        !opponent
+                    ) {
+
                         return;
                     }
+
 
                     send_message(
                         opponent,
                         {
                             "type":
                                 "action",
+
                             "action_type":
                                 data.action_type || "",
+
                             "data":
                                 data.data || {}
                         }
                     );
+
 
                     return;
                 }
@@ -449,20 +677,28 @@ if (
                     "クライアント切断"
                 );
 
+
                 if (
                     ws.room_code === ""
                 ) {
+
                     return;
                 }
+
 
                 const room =
                     rooms.get(
                         ws.room_code
                     );
 
-                if (!room) {
+
+                if (
+                    !room
+                ) {
+
                     return;
                 }
+
 
                 const opponent =
                     get_opponent(
@@ -470,7 +706,10 @@ if (
                         ws
                     );
 
-                if (opponent) {
+
+                if (
+                    opponent
+                ) {
 
                     send_message(
                         opponent,
@@ -480,9 +719,11 @@ if (
                         }
                     );
 
+
                     opponent.room_code =
                         "";
                 }
+
 
                 rooms.delete(
                     ws.room_code
@@ -493,7 +734,22 @@ if (
 );
 
 
-console.log(
-    "WebSocket server listening on " +
-    PORT
+// =========================================================
+// HTTP + WebSocketサーバー起動
+// =========================================================
+
+http_server.listen(
+    PORT,
+    function() {
+
+        console.log(
+            "Web server listening on port " +
+            PORT
+        );
+
+        console.log(
+            "WebSocket server listening on port " +
+            PORT
+        );
+    }
 );
