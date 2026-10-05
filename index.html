@@ -1,563 +1,164 @@
 <!DOCTYPE html>
-<html lang="en">
-	<head>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, user-scalable=yes, initial-scale=1.0">
-		<title>ムニキング仮</title>
-
-		<style>
-html, body, #canvas {
-	margin: 0;
-	padding: 0;
-	border: 0;
-}
-
-body {
-	color: white;
-	background-color: black;
-	overflow: hidden;
-	touch-action: none;
-}
-
-#canvas {
-	display: block;
-	transform-origin: center center;
-}
-
-#canvas:focus {
-	outline: none;
-}
-
-#status, #status-splash, #status-progress {
-	position: absolute;
-	left: 0;
-	right: 0;
-}
-
-#status, #status-splash {
-	top: 0;
-	bottom: 0;
-}
-
-#status {
-	background-color: #242424;
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-	align-items: center;
-	visibility: hidden;
-}
-
-#status-splash {
-	max-height: 100%;
-	max-width: 100%;
-	margin: auto;
-}
-
-#status-splash.show-image--false {
-	display: none;
-}
-
-#status-splash.fullsize--true {
-	height: 100%;
-	width: 100%;
-	object-fit: contain;
-}
-
-#status-splash.use-filter--false {
-	image-rendering: pixelated;
-}
-
-#status-progress, #status-notice {
-	display: none;
-}
-
-#status-progress {
-	bottom: 10%;
-	width: 50%;
-	margin: 0 auto;
-}
-
-#status-notice {
-	background-color: #5b3943;
-	border-radius: 0.5rem;
-	border: 1px solid #9b3943;
-	color: #e0e0e0;
-	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
-	line-height: 1.3;
-	margin: 0 2rem;
-	overflow: hidden;
-	padding: 1rem;
-	text-align: center;
-	z-index: 1;
-}
-		</style>
-
-		<link id="-gd-engine-icon" rel="icon" type="image/png" href="ムニキング.icon.png" />
-		<link rel="apple-touch-icon" href="ムニキング.apple-touch-icon.png"/>
-	</head>
-
-	<body>
-		<canvas id="canvas">
-			Your browser does not support the canvas tag.
-		</canvas>
+<html lang="ja">
 
-		<noscript>
-			Your browser does not support JavaScript.
-		</noscript>
+<head>
 
-		<div id="status">
-			<img
-				id="status-splash"
-				class="show-image--true fullsize--true use-filter--true"
-				src="ムニキング.png"
-				alt=""
-			>
-			<progress id="status-progress"></progress>
-			<div id="status-notice"></div>
-		</div>
+    <meta charset="UTF-8">
 
-		<script src="ムニキング.js"></script>
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-		<script>
-const GODOT_CONFIG = {
-	"args": [],
-	"canvasResizePolicy": 2,
-	"emscriptenPoolSize": 8,
-	"ensureCrossOriginIsolationHeaders": true,
-	"executable": "ムニキング",
-	"experimentalVK": false,
-	"fileSizes": {
-		"ムニキング.pck": 79207356,
-		"ムニキング.wasm": 35749181
-	},
-	"focusCanvas": true,
-	"gdextensionLibs": [],
-	"godotPoolSize": 4
-};
+    <title>ムニキング</title>
 
-const GODOT_THREADS_ENABLED = false;
-const engine = new Engine(GODOT_CONFIG);
+    <style>
 
+        body {
+            margin: 0;
+            background: #101820;
+            color: white;
+            font-family: sans-serif;
+            text-align: center;
+        }
 
-/* =========================================================
-   スマホ用ピンチ拡大・縮小
-   ========================================================= */
+        #password_screen {
+            position: fixed;
+            top: 0;
+            left: 0;
 
-(function () {
+            width: 100%;
+            height: 100%;
 
-	const canvas = document.getElementById('canvas');
+            display: flex;
+            flex-direction: column;
 
-	let activePointers = new Map();
-	let pinchStartDistance = 0;
-	let pinchStartZoom = 1.0;
+            justify-content: center;
+            align-items: center;
+        }
 
-	let zoom = 1.0;
+        #password_screen h1 {
+            font-size: 32px;
+            margin-bottom: 30px;
+        }
 
-	const MIN_ZOOM = 1.0;
-	const MAX_ZOOM = 3.0;
+        #password_input {
+            width: 300px;
+            padding: 15px;
 
+            font-size: 18px;
 
-	function getDistance() {
+            box-sizing: border-box;
+        }
 
-		const points = Array.from(activePointers.values());
+        #password_button {
+            width: 300px;
 
-		if (points.length < 2) {
-			return 0;
-		}
+            margin-top: 15px;
+            padding: 15px;
 
-		const dx = points[0].x - points[1].x;
-		const dy = points[0].y - points[1].y;
+            font-size: 18px;
 
-		return Math.sqrt(
-			dx * dx + dy * dy
-		);
-	}
+            cursor: pointer;
+        }
 
+        #error_message {
+            margin-top: 20px;
 
-	function applyZoom() {
+            color: #ff5555;
 
-		canvas.style.transform =
-			"scale(" + zoom + ")";
+            font-size: 16px;
+        }
 
-	}
+    </style>
 
+</head>
 
-	canvas.addEventListener(
-		"pointerdown",
-		function (event) {
+<body>
 
-			activePointers.set(
-				event.pointerId,
-				{
-					x: event.clientX,
-					y: event.clientY
-				}
-			);
+    <div id="password_screen">
 
-			if (activePointers.size === 2) {
+        <h1>ムニキング</h1>
 
-				pinchStartDistance =
-					getDistance();
+        <input
+            id="password_input"
+            type="password"
+            placeholder="パスワードを入力"
+        >
 
-				pinchStartZoom =
-					zoom;
+        <button
+            id="password_button"
+        >
+            ゲームを開始
+        </button>
 
-				event.preventDefault();
-			}
-		},
-		{ passive: false }
-	);
+        <div id="error_message"></div>
 
+    </div>
 
-	canvas.addEventListener(
-		"pointermove",
-		function (event) {
+    <script>
 
-			if (!activePointers.has(event.pointerId)) {
-				return;
-			}
+        const PASSWORD = "AkitaMinami62";
 
-			activePointers.set(
-				event.pointerId,
-				{
-					x: event.clientX,
-					y: event.clientY
-				}
-			);
+        const passwordInput =
+            document.getElementById(
+                "password_input"
+            );
 
-			if (activePointers.size === 2) {
+        const passwordButton =
+            document.getElementById(
+                "password_button"
+            );
 
-				const currentDistance =
-					getDistance();
+        const errorMessage =
+            document.getElementById(
+                "error_message"
+            );
 
-				if (
-					pinchStartDistance > 0 &&
-					currentDistance > 0
-				) {
 
-					const scale =
-						currentDistance /
-						pinchStartDistance;
+        passwordButton.addEventListener(
+            "click",
+            function() {
 
-					zoom =
-						pinchStartZoom *
-						scale;
+                if (
+                    passwordInput.value
+                    === PASSWORD
+                ) {
 
-					zoom =
-						Math.max(
-							MIN_ZOOM,
-							Math.min(
-								MAX_ZOOM,
-								zoom
-							)
-						);
+                    window.location.href =
+                        "./ムニキング.html";
 
-					applyZoom();
+                } else {
 
-					event.preventDefault();
-				}
-			}
-		},
-		{ passive: false }
-	);
+                    errorMessage.textContent =
+                        "パスワードが違います。";
 
+                    passwordInput.value = "";
 
-	function removePointer(event) {
+                }
 
-		activePointers.delete(
-			event.pointerId
-		);
+            }
+        );
 
-		if (activePointers.size < 2) {
 
-			pinchStartDistance = 0;
-		}
-	}
+        passwordInput.addEventListener(
+            "keydown",
+            function(event) {
 
+                if (
+                    event.key
+                    === "Enter"
+                ) {
 
-	canvas.addEventListener(
-		"pointerup",
-		removePointer
-	);
+                    passwordButton.click();
 
-	canvas.addEventListener(
-		"pointercancel",
-		removePointer
-	);
+                }
 
-	canvas.addEventListener(
-		"pointerleave",
-		function (event) {
+            }
+        );
 
-			if (activePointers.size < 2) {
-				activePointers.delete(
-					event.pointerId
-				);
-			}
+    </script>
 
-		}
-	);
+</body>
 
-})();
-
-
-/* =========================================================
-   Godot Web起動処理
-   ========================================================= */
-
-(function () {
-
-	const statusOverlay =
-		document.getElementById('status');
-
-	const statusProgress =
-		document.getElementById('status-progress');
-
-	const statusNotice =
-		document.getElementById('status-notice');
-
-
-	let initializing = true;
-	let statusMode = '';
-
-
-	function setStatusMode(mode) {
-
-		if (
-			statusMode === mode ||
-			!initializing
-		) {
-			return;
-		}
-
-
-		if (mode === 'hidden') {
-
-			statusOverlay.remove();
-
-			initializing = false;
-
-			return;
-		}
-
-
-		statusOverlay.style.visibility =
-			'visible';
-
-		statusProgress.style.display =
-			mode === 'progress'
-				? 'block'
-				: 'none';
-
-		statusNotice.style.display =
-			mode === 'notice'
-				? 'block'
-				: 'none';
-
-		statusMode = mode;
-	}
-
-
-	function setStatusNotice(text) {
-
-		while (statusNotice.lastChild) {
-
-			statusNotice.removeChild(
-				statusNotice.lastChild
-			);
-		}
-
-
-		const lines =
-			text.split('\n');
-
-
-		lines.forEach((line) => {
-
-			statusNotice.appendChild(
-				document.createTextNode(line)
-			);
-
-			statusNotice.appendChild(
-				document.createElement('br')
-			);
-
-		});
-	}
-
-
-	function displayFailureNotice(err) {
-
-		console.error(err);
-
-
-		if (err instanceof Error) {
-
-			setStatusNotice(
-				err.message
-			);
-
-		} else if (
-			typeof err === 'string'
-		) {
-
-			setStatusNotice(err);
-
-		} else {
-
-			setStatusNotice(
-				'An unknown error occurred.'
-			);
-		}
-
-
-		setStatusMode('notice');
-
-		initializing = false;
-	}
-
-
-	const missing =
-		Engine.getMissingFeatures({
-			threads:
-				GODOT_THREADS_ENABLED,
-		});
-
-
-	if (missing.length !== 0) {
-
-		if (
-			GODOT_CONFIG['serviceWorker'] &&
-			GODOT_CONFIG[
-				'ensureCrossOriginIsolationHeaders'
-			] &&
-			'serviceWorker' in navigator
-		) {
-
-			let serviceWorkerRegistrationPromise;
-
-
-			try {
-
-				serviceWorkerRegistrationPromise =
-					navigator.serviceWorker.getRegistration();
-
-			} catch (err) {
-
-				serviceWorkerRegistrationPromise =
-					Promise.reject(
-						new Error(
-							'Service worker registration failed.'
-						)
-					);
-			}
-
-
-			Promise.race([
-
-				serviceWorkerRegistrationPromise
-					.then((registration) => {
-
-						if (registration != null) {
-
-							return Promise.reject(
-								new Error(
-									'Service worker already exists.'
-								)
-							);
-						}
-
-						return registration;
-
-					})
-					.then(() =>
-						engine.installServiceWorker()
-					),
-
-
-				new Promise((resolve) => {
-
-					setTimeout(
-						() => resolve(),
-						2000
-					);
-
-				}),
-
-			])
-			.then(() => {
-
-				window.location.reload();
-
-			})
-			.catch((err) => {
-
-				console.error(
-					'Error while registering service worker:',
-					err
-				);
-
-			});
-
-
-		} else {
-
-			const missingMsg =
-				'Error\nThe following features required to run Godot projects on the Web are missing:\n';
-
-			displayFailureNotice(
-				missingMsg +
-				missing.join('\n')
-			);
-		}
-
-
-	} else {
-
-		setStatusMode('progress');
-
-
-		engine.startGame({
-
-			'onProgress':
-				function (
-					current,
-					total
-				) {
-
-					if (
-						current > 0 &&
-						total > 0
-					) {
-
-						statusProgress.value =
-							current;
-
-						statusProgress.max =
-							total;
-
-					} else {
-
-						statusProgress.removeAttribute(
-							'value'
-						);
-
-						statusProgress.removeAttribute(
-							'max'
-						);
-					}
-				},
-
-		})
-		.then(() => {
-
-			setStatusMode('hidden');
-
-		}, displayFailureNotice);
-	}
-
-}());
-		</script>
-	</body>
 </html>
